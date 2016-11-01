@@ -105,6 +105,8 @@ if __name__ == '__main__':
     period = 12
     month_prev = (year * 12 + month - period) % 12
     year_prev = (year * 12 + month - period) // 12
+    month_next = (year * 12 + month + period) % 12
+    year_next = (year * 12 + month + period) // 12
 
     assets_prev = Table(month_prev, year_prev, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_пред_(млн_руб)'))
     assets = Table(month, year, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_(млн_руб)'))
@@ -112,11 +114,11 @@ if __name__ == '__main__':
     capital_prev = Table(month_prev, year_prev, 20, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Капитал_пред_(млн_руб)'))
     business = Table(month, year, 21, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Кредиты_преприятиям_(млн_руб)'))
     consumers = Table(month, year, 24, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Потребительские_кредиты_(млн_руб)'))
-    # securities = Table(month, year, 27, (1, 2, 3, 5), True)
     atm = Table(month, year, 34, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Оборот_средств_в_банкоматах_(млн_руб)'))
     accounts = Table(month, year, 410, (3, 5, 7), ('Лиц', 'Р/С_ф/л_(млн_руб)', 'Изменение_Р/С_ф/л_(млн_руб)'), False)
     money = Table(month, year, 500, (3, 5, 7), ('Лиц', 'Средства_ПиО_(млн_руб)', 'Изменение_Средства_ПиО_(млн_руб)'), False)
     deposits = Table(month, year, 60, (3, 5, 7), ('Лиц', 'Вклады_ф/л_(млн_руб)', 'Изменение_вклады_ф/л_(млн_руб)'), False)
+    securities = Table(month, year, 70, (3, 5, 7), ('Лиц', 'Ценные_бумаги_(млн_руб)', 'Изменение_ценные_бумаги_(млн_руб)'), False)
 
     main = Table.my_merge()
 
@@ -131,12 +133,14 @@ if __name__ == '__main__':
     main = main.drop(labels='Кредиты_преприятиям_(млн_руб)', axis=1)
     main['Потребительские_кредиты/Капитал'] = main['Потребительские_кредиты_(млн_руб)'] / main['Капитал_(млн_руб)']
     main = main.drop(labels='Потребительские_кредиты_(млн_руб)', axis=1)
+    main['Ценные_бумаги/Капитал'] = main['Ценные_бумаги_(млн_руб)'] / main['Капитал_(млн_руб)']
+    main = main.drop(labels='Ценные_бумаги_(млн_руб)', axis=1)
 
     ########################## добавляю столбец отзыв
 
     defunct = Table.parser()
     defunct[['дата_отзыва']] = defunct[['дата_отзыва']].apply(pd.to_datetime)
-    defunct = defunct[(defunct.причина == 'отозв.') & (defunct.дата_отзыва >= pd.datetime(year_prev, month_prev, 1)) & (defunct.дата_отзыва <= pd.datetime(year, month, 1))]
+    defunct = defunct[(defunct.причина == 'отозв.') & (defunct.дата_отзыва <= pd.datetime(year_next, month_next, 1)) & (defunct.дата_отзыва >= pd.datetime(year, month, 1))]
     defunct = defunct[['номер_лицензии', 'причина']]
     defunct.columns = ['Лиц', 'Отзыв']
     defunct['Лиц'] = defunct[['Лиц']].apply(lambda row: int(re.sub(r'[^\d]', '', str(row.Лиц))), axis=1)
