@@ -3,6 +3,9 @@ import urllib.request
 import pandas as pd
 import re
 import gc
+import os
+from datetime import datetime
+from progress_bar import print_progress
 
 
 class Table(object):
@@ -25,12 +28,13 @@ class Table(object):
 
         def get_data(self):
             if self.bankir:
-                data = pd.read_csv(urllib.request.urlopen(self.url), ";", skiprows=0, header=0, encoding='utf-8', quotechar="'", usecols=self.cols, names=self.names)
+                data = pd.read_csv(urllib.request.urlopen(self.url), ";", skiprows=0, header=0, encoding='utf-8', quotechar="'", usecols=self.cols, names=('Лиц', 'Банк', 'Город', 'a'))
+                data.a /= 1000 # переводим из тысяч в миллионы
             else:
                 data = pd.read_csv(urllib.request.urlopen(self.url), ";", names=('Лиц', 'a', 'b'), skiprows=4, usecols=self.cols, thousands=' ', decimal=',', na_values='-', encoding='windows-1251')
                 data.a /= 1000 # переводим из тысяч в миллионы
                 data.b /= 1000 # переводим из тысяч в миллионы
-                data.columns = self.names
+            data.columns = self.names
             return data
 
         self.data = get_data(self)
@@ -66,13 +70,14 @@ class Table(object):
             thead[i] = th.replace(' ', '_')
             i += 1
         trs = re.findall(r'<td[^>]*>(?:<strong><a[^>]*>)?(.*?)(?:</a></strong>)?</td>', str(table))
+        print_progress(0, n_pages, prefix='Формирую файл с отозванными банками:', suffix='Выполнено', barLength=40)
         for i in range(2, n_pages):
             cur_url = url + str(i)
-            print(cur_url)
             site = urllib.request.urlopen(cur_url)
             html = site.read().decode('windows-1251')
             table = re.findall(r'<table class="standard-table standard-table--row-highlight">(.*?)</table>', str(html), re.S)
             trs.extend(re.findall(r'<td[^>]*>(?:<strong><a[^>]*>)?(.*?)(?:</a></strong>)?</td>', str(table)))
+            print_progress(i, n_pages, prefix='Формирую файл с отозванными банками:', suffix='Выполнено', barLength=40)
         defunct = pd.DataFrame(data=chunks(trs, len(thead)), columns=thead)
         return defunct
 
@@ -100,9 +105,9 @@ class Table(object):
         return df
 
 if __name__ == '__main__':
-    month = 1
-    year = 2015
-    period = 12
+    month = 7
+    year = 2016
+    period = 3
     month_prev = (year * 12 + month - period) % 12
     year_prev = (year * 12 + month - period) // 12
     month_next = (year * 12 + month + period) % 12
@@ -110,8 +115,6 @@ if __name__ == '__main__':
 
     assets_prev = Table(month_prev, year_prev, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_пред_(млн_руб)'))
     assets = Table(month, year, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_(млн_руб)'))
-    capital = Table(month, year, 20, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Капитал_(млн_руб)'))
-    capital_prev = Table(month_prev, year_prev, 20, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Капитал_пред_(млн_руб)'))
     business = Table(month, year, 21, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Кредиты_преприятиям_(млн_руб)'))
     consumers = Table(month, year, 24, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Потребительские_кредиты_(млн_руб)'))
     atm = Table(month, year, 34, (1, 2, 3, 5), ('Лиц', 'Банк', 'Город', 'Оборот_средств_в_банкоматах_(млн_руб)'))
@@ -119,14 +122,14 @@ if __name__ == '__main__':
     money = Table(month, year, 500, (3, 5, 7), ('Лиц', 'Средства_ПиО_(млн_руб)', 'Изменение_Средства_ПиО_(млн_руб)'), False)
     deposits = Table(month, year, 60, (3, 5, 7), ('Лиц', 'Вклады_ф/л_(млн_руб)', 'Изменение_вклады_ф/л_(млн_руб)'), False)
     securities = Table(month, year, 70, (3, 5, 7), ('Лиц', 'Ценные_бумаги_(млн_руб)', 'Изменение_ценные_бумаги_(млн_руб)'), False)
+    capital = Table(month, year, 25, (3, 5, 7), ('Лиц', 'Капитал_(млн_руб)', 'Изменение_капитал_(млн_руб)'), False)
+
 
     main = Table.my_merge()
 
     ########################### произвожу определенную работу со столбцами
     main['Изменение_активы_(млн_руб)'] = main['Активы_(млн_руб)'] - main['Активы_пред_(млн_руб)']
     main = main.drop(labels='Активы_пред_(млн_руб)', axis=1)
-    main['Изменение_капитал_(млн_руб)'] = main['Капитал_(млн_руб)'] - main['Капитал_пред_(млн_руб)']
-    main = main.drop(labels='Капитал_пред_(млн_руб)', axis=1)
     main['Обороты_средств_в_банкоматах/Капитал'] = main['Оборот_средств_в_банкоматах_(млн_руб)']/main['Капитал_(млн_руб)']
     main = main.drop(labels='Оборот_средств_в_банкоматах_(млн_руб)', axis=1)
     main['Кредиты_преприятиям/Капитал'] = main['Кредиты_преприятиям_(млн_руб)'] / main['Капитал_(млн_руб)']
@@ -138,7 +141,19 @@ if __name__ == '__main__':
 
     ########################## добавляю столбец отзыв
 
-    defunct = Table.parser()
+        ##### для того, чтобы каждый раз не парсить сайт, проверяю как давно был создан (или изменен) файл. Если более 7 дней, то парсим
+    # print(datetime.fromtimestamp(os.path.getctime('withdraw.csv')-datetime.today().timestamp()).day > 7)
+
+    if os.path.exists('withdraw.csv'):
+        if datetime.fromtimestamp(os.path.getmtime('withdraw.csv')-datetime.today().timestamp()).day > 7:
+            defunct = Table.parser()
+            defunct.to_csv('withdraw.csv')
+        else:
+            defunct = pd.read_csv('withdraw.csv')
+    else:
+        defunct = Table.parser()
+        defunct.to_csv('withdraw.csv')
+
     defunct[['дата_отзыва']] = defunct[['дата_отзыва']].apply(pd.to_datetime)
     defunct = defunct[(defunct.причина == 'отозв.') & (defunct.дата_отзыва <= pd.datetime(year_next, month_next, 1)) & (defunct.дата_отзыва >= pd.datetime(year, month, 1))]
     defunct = defunct[['номер_лицензии', 'причина']]
@@ -165,7 +180,7 @@ if __name__ == '__main__':
     main.columns = final_names
 
     main.sort_values(by='Активы (млн руб)', ascending=False, axis=0, inplace=True, kind='quicksort')
-    main.to_csv('main.csv', index=False)
+    main.to_csv('07.16.csv', index=False)
     print(main)
     print(main.dtypes)
     print(main.shape)
