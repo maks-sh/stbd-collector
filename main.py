@@ -112,6 +112,7 @@ if __name__ == '__main__':
     year_prev = (year * 12 + month - period) // 12
     month_next = (year * 12 + month + period) % 12
     year_next = (year * 12 + month + period) // 12
+    filename = str(month) + '.' + str(year) + '.xlsx'
 
     assets_prev = Table(month_prev, year_prev, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_пред_(млн_руб)'))
     assets = Table(month, year, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_(млн_руб)'))
@@ -164,6 +165,7 @@ if __name__ == '__main__':
         return row
 
     main = defunct.merge(main, how='outer', on='Лиц')
+    main.dropna(axis=0, how='any', subset=['Банк', 'Город'], inplace=True)
     main.Отзыв = main.Отзыв.fillna(0)
     main = main.apply(lambda row: handle(row), axis=1)
     main.dropna(axis=0, how='any', inplace=True)
@@ -175,7 +177,7 @@ if __name__ == '__main__':
     main.columns = final_names
 
     main.sort_values(by='Активы (млн руб)', ascending=False, axis=0, inplace=True, kind='quicksort')
-    main.to_csv('07.16.csv', index=False)
+    main.to_excel(filename, index=False)
     print(main)
     print(main.dtypes)
     print(main.shape)
