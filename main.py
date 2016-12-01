@@ -139,17 +139,12 @@ if __name__ == '__main__':
     main['Ценные_бумаги/Капитал'] = main['Ценные_бумаги_(млн_руб)'] / main['Капитал_(млн_руб)']
     main = main.drop(labels='Ценные_бумаги_(млн_руб)', axis=1)
 
-    ########################## добавляю столбец отзыв
+    ########################## добавляю столбец отзыв, для этого собираю данные с сайта banki.ru
 
-        ##### для того, чтобы каждый раз не парсить сайт, проверяю как давно был создан (или изменен) файл. Если более 7 дней, то парсим
-    # print(datetime.fromtimestamp(os.path.getctime('withdraw.csv')-datetime.today().timestamp()).day > 7)
-
-    if os.path.exists('withdraw.csv'):
-        if datetime.fromtimestamp(os.path.getmtime('withdraw.csv')-datetime.today().timestamp()).day > 7:
-            defunct = Table.parser()
-            defunct.to_csv('withdraw.csv')
-        else:
-            defunct = pd.read_csv('withdraw.csv')
+        ##### для того, чтобы каждый раз не парсить сайт, проверяю как давно был изменен файл: если более 7 дней, то парсим
+    if os.path.exists('withdraw.csv') and \
+                    datetime.fromtimestamp(os.path.getmtime('withdraw.csv')-datetime.today().timestamp()).day < 7:
+        defunct = pd.read_csv('withdraw.csv')
     else:
         defunct = Table.parser()
         defunct.to_csv('withdraw.csv')
@@ -184,7 +179,6 @@ if __name__ == '__main__':
     print(main)
     print(main.dtypes)
     print(main.shape)
-
 
 # активы 19
 # капитал 20
