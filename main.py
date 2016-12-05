@@ -6,22 +6,29 @@ import gc
 import os
 from datetime import datetime
 from progress_bar import print_progress
+from datetime import date
+import dateutil.relativedelta
 
 
 class Table(object):
-    def __init__(self, month, year, number, cols, names, bankir=True):
+    def __init__(self, month, year, id, cols, names, bankir=True):
         self.month = month
         self.year = year
-        self.number = number
+        if id == 0 and year >= 2015:
+            self.id = 25
+        elif id == 0 and year < 2015:
+            self.id = 20
+        else:
+            self.id = id
         self.cols = cols
         self.bankir = bankir
         self.names = names
 
         def get_url(self):
             if self.bankir:
-                url = u'http://bankir.ru/rating/export/csv/' + str(self.month) + '/' + str(self.year) + '/' + str(self.number)
+                url = u'http://bankir.ru/rating/export/csv/' + str(self.month) + '/' + str(self.year) + '/' + str(self.id)
             else:
-                url = u'http://www.banki.ru/banks/ratings/export.php?PROPERTY_ID=' + str(self.number) + '&date1=' + str(self.year) + '-' + str(self.month) + '-01&date2=' +  str(year_prev) + '-' + str(month_prev)+ '-01'
+                url = u'http://www.banki.ru/banks/ratings/export.php?PROPERTY_ID=' + str(self.id) + '&date1=' + str(self.year) + '-' + str(self.month) + '-01&date2=' +  str(year_prev) + '-' + str(month_prev)+ '-01'
             return url
 
         self.url = get_url(self)
@@ -105,13 +112,21 @@ class Table(object):
         return df
 
 if __name__ == '__main__':
-    month = 7
-    year = 2016
-    period = 3
-    month_prev = (year * 12 + month - period) % 12
-    year_prev = (year * 12 + month - period) // 12
-    month_next = (year * 12 + month + period) % 12
-    year_next = (year * 12 + month + period) // 12
+    month = 1
+    year = 2013
+    period = 10
+    d = date(year, month, 1)
+    prev = d - dateutil.relativedelta.relativedelta(months=period)
+    next = d + dateutil.relativedelta.relativedelta(months=period)
+    print(prev)
+    print(next)
+
+    # month_prev = (year * 12 + month - period) % 12
+    # year_prev = (year * 12 + month - period) // 12
+    month_prev = prev.month
+    year_prev = prev.year
+    month_next = next.month
+    year_next = next.year
     filename = str(month) + '.' + str(year) + '.xlsx'
 
     assets_prev = Table(month_prev, year_prev, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_пред_(млн_руб)'))
@@ -123,10 +138,22 @@ if __name__ == '__main__':
     money = Table(month, year, 500, (3, 5, 7), ('Лиц', 'Средства_ПиО_(млн_руб)', 'Изменение_Средства_ПиО_(млн_руб)'), False)
     deposits = Table(month, year, 60, (3, 5, 7), ('Лиц', 'Вклады_ф/л_(млн_руб)', 'Изменение_вклады_ф/л_(млн_руб)'), False)
     securities = Table(month, year, 70, (3, 5, 7), ('Лиц', 'Ценные_бумаги_(млн_руб)', 'Изменение_ценные_бумаги_(млн_руб)'), False)
-    capital = Table(month, year, 25, (3, 5, 7), ('Лиц', 'Капитал_(млн_руб)', 'Изменение_капитал_(млн_руб)'), False)
-
+    capital = Table(month, year, 0, (3, 5, 7), ('Лиц', 'Капитал_(млн_руб)', 'Изменение_капитал_(млн_руб)'), False)
 
     main = Table.my_merge()
+
+    print(assets_prev.data.shape)
+    print(assets.data.shape)
+    print(business.data.shape)
+    print(consumers.data.shape)
+    print(atm.data.shape)
+    print(accounts.data.shape)
+    print(money.data.shape)
+    print(deposits.data.shape)
+    print(securities.data.shape)
+    print(capital.data.shape)
+    print(capital.data)
+    print(capital.url)
 
     ########################### произвожу определенную работу со столбцами
     main['Изменение_активы_(млн_руб)'] = main['Активы_(млн_руб)'] - main['Активы_пред_(млн_руб)']
@@ -191,3 +218,6 @@ if __name__ == '__main__':
 # расчетные счета? http://www.banki.ru/banks/ratings/?PROPERTY_ID=410
 # средства ПиО http://www.banki.ru/banks/ratings/?PROPERTY_ID=500
 # вклады ф/л 31-33 http://www.banki.ru/banks/ratings/?PROPERTY_ID=60
+
+# с января 2015 года http://www.banki.ru/banks/ratings/?PROPERTY_ID=25
+# до декабря 2014 года http://www.banki.ru/banks/ratings/?PROPERTY_ID=20
