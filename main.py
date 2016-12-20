@@ -4,22 +4,44 @@ import pandas as pd
 import re
 import gc
 import os
+import dateutil.relativedelta
 from datetime import datetime
 from progress_bar import print_progress
 from datetime import date
-import dateutil.relativedelta
 
 
 class Table(object):
     def __init__(self, month, year, id, cols, names, bankir=True):
         self.month = month
         self.year = year
-        if id == 0 and year >= 2015:
+        '''
+        Список всех id:
+            banki.ru:
+                капитал:
+                    На banki.ru капитал представлен в двух id - 25 и 20.
+                    25 доступен начиная с 01.09.2014
+                    20 доступен до 31.12.2014
+                    Поэтому при создании объекта - если id==0, то это капитал.
+                расчетные счета: 410
+                средства ПиО: 500
+                Вклады ф/л: 60
+
+            bankir.ru:
+                активы: 19
+                ценные бумаги: 27
+                обороты средств в банкоматах: 34
+                кредиты предприятиям: 21
+                потребительские кредиты: 24
+        '''
+        if id == 0 and (prev >= date(2014, 9, 1)):
             self.id = 25
-        elif id == 0 and year < 2015:
+        elif id == 0 and d >= date(2014, 9, 1):
+            self.id = id # осталвяем id=0 для случая когда дата запрашиваемого периода больше 01/09/2014, а предыдущая дата prev - меньше
+        elif id == 0:
             self.id = 20
         else:
             self.id = id
+
         self.cols = cols
         self.bankir = bankir
         self.names = names
@@ -35,10 +57,23 @@ class Table(object):
 
         def get_data(self):
             if self.bankir:
-                data = pd.read_csv(urllib.request.urlopen(self.url), ";", skiprows=0, header=0, encoding='utf-8', quotechar="'", usecols=self.cols, names=('Лиц', 'Банк', 'Город', 'a'))
+                data = pd.read_csv(urllib.request.urlopen(self.url), ";", skiprows=0, header=0, encoding='utf-8', quotechar="'", usecols=self.cols, names=('Лиц', 'Банк', 'city', 'a'))
                 data.a /= 1000 # переводим из тысяч в миллионы
+                data.city = data.city.apply(lambda row: row.capitalize())
             else:
-                data = pd.read_csv(urllib.request.urlopen(self.url), ";", names=('Лиц', 'a', 'b'), skiprows=4, usecols=self.cols, thousands=' ', decimal=',', na_values='-', encoding='windows-1251')
+                if self.id == 0:
+                    self.url = u'http://www.banki.ru/banks/ratings/export.php?PROPERTY_ID=25&date1=' + str(
+                        self.year) + '-' + str(self.month) + '-01&date2=' + str(year_prev) + '-' + str(
+                        month_prev) + '-01'
+                    url_for_prev = u'http://www.banki.ru/banks/ratings/export.php?PROPERTY_ID=20&date1=' + str(
+                        year_prev) + '-' + str(month_prev) + '-01&date2=2008-03-01'
+                    print(url_for_prev)
+                    data = pd.read_csv(urllib.request.urlopen(self.url), ";", names=('Лиц', 'a'), skiprows=4, usecols=[3, 5], thousands=' ', decimal=',', na_values='-', encoding='windows-1251')
+                    data_for_prev = pd.read_csv(urllib.request.urlopen(url_for_prev), ";", names=('Лиц', 'b'), skiprows=4, usecols=[3, 5], thousands=' ', decimal=',', na_values='-', encoding='windows-1251')
+                    data = data.merge(data_for_prev, how='outer', on='Лиц')
+                    print(data)
+                else:
+                    data = pd.read_csv(urllib.request.urlopen(self.url), ";", names=('Лиц', 'a', 'b'), skiprows=4, usecols=self.cols, thousands=' ', decimal=',', na_values='-', encoding='windows-1251')
                 data.a /= 1000 # переводим из тысяч в миллионы
                 data.b /= 1000 # переводим из тысяч в миллионы
             data.columns = self.names
@@ -112,22 +147,20 @@ class Table(object):
         return df
 
 if __name__ == '__main__':
-    month = 1
-    year = 2013
-    period = 10
+    month = 11
+    year = 2015
+    period = 1
     d = date(year, month, 1)
     prev = d - dateutil.relativedelta.relativedelta(months=period)
     next = d + dateutil.relativedelta.relativedelta(months=period)
     print(prev)
     print(next)
 
-    # month_prev = (year * 12 + month - period) % 12
-    # year_prev = (year * 12 + month - period) // 12
     month_prev = prev.month
     year_prev = prev.year
     month_next = next.month
     year_next = next.year
-    filename = str(month) + '.' + str(year) + '.xlsx'
+    filename = str(month) + '.' + str(year) + '.period=' + str(period) +'.xlsx'
 
     assets_prev = Table(month_prev, year_prev, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_пред_(млн_руб)'))
     assets = Table(month, year, 19, (1, 2, 3, 4), ('Лиц', 'Банк', 'Город', 'Активы_(млн_руб)'))
@@ -142,18 +175,18 @@ if __name__ == '__main__':
 
     main = Table.my_merge()
 
-    print(assets_prev.data.shape)
-    print(assets.data.shape)
-    print(business.data.shape)
-    print(consumers.data.shape)
-    print(atm.data.shape)
-    print(accounts.data.shape)
-    print(money.data.shape)
-    print(deposits.data.shape)
-    print(securities.data.shape)
-    print(capital.data.shape)
-    print(capital.data)
-    print(capital.url)
+    # print(main)
+    # print(assets_prev.data.dropna(axis=0, how='any').shape)
+    # print(assets.data.dropna(axis=0, how='any').shape)
+    # print(business.data.dropna(axis=0, how='any').shape)
+    # print(consumers.data.dropna(axis=0, how='any').shape)
+    # print(atm.data.dropna(axis=0, how='any').shape)
+    # print(accounts.data.dropna(axis=0, how='any').shape)
+    # print(money.data.dropna(axis=0, how='any').shape)
+    # print(deposits.data.dropna(axis=0, how='any').shape)
+    # print(securities.data.dropna(axis=0, how='any').shape)
+    # print(capital.data.dropna(axis=0, how='any').shape)
+    # print(capital.url)
 
     ########################### произвожу определенную работу со столбцами
     main['Изменение_активы_(млн_руб)'] = main['Активы_(млн_руб)'] - main['Активы_пред_(млн_руб)']
@@ -205,19 +238,5 @@ if __name__ == '__main__':
 
     main.sort_values(by='Активы (млн руб)', ascending=False, axis=0, inplace=True, kind='quicksort')
     main.to_excel(filename, index=False)
-    print(main)
-    print(main.dtypes)
+    # print(main)
     print(main.shape)
-
-# активы 19
-# капитал 20
-# ценные бумаги 27
-# обороты средств в банкоматах 34
-# кредиты предприятиям 21
-# потребительские кредиты 24
-# расчетные счета? http://www.banki.ru/banks/ratings/?PROPERTY_ID=410
-# средства ПиО http://www.banki.ru/banks/ratings/?PROPERTY_ID=500
-# вклады ф/л 31-33 http://www.banki.ru/banks/ratings/?PROPERTY_ID=60
-
-# с января 2015 года http://www.banki.ru/banks/ratings/?PROPERTY_ID=25
-# до декабря 2014 года http://www.banki.ru/banks/ratings/?PROPERTY_ID=20
